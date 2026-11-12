@@ -311,8 +311,18 @@ def main():
         forecast = baseline_forecast(reads[-1]["up_and_coming"], places)
     out_path = os.path.join(output_dir, task.get("output", "forecast.json"))
     os.makedirs(output_dir, exist_ok=True)
+    payload = json.dumps(forecast) + "\n"
     with open(out_path, "w") as fh:
-        fh.write(json.dumps(forecast) + "\n")
+        fh.write(payload)
+    # Verify the forecast actually landed on disk and parses back: a silent
+    # empty or truncated write would score as no forecast at all, so fail
+    # loudly here instead of exiting 0 with a broken output file.
+    if not os.path.isfile(out_path) or os.path.getsize(out_path) == 0:
+        raise RuntimeError(f"forecast output missing or empty: {out_path}")
+    with open(out_path) as fh:
+        written = json.load(fh)
+    if set(written) != {"probabilities", "top10"} or len(written["top10"]) != places:
+        raise RuntimeError(f"forecast output malformed: {out_path}")
 
 
 if __name__ == "__main__":
